@@ -12,14 +12,14 @@ ratio = 2.00  # additional points will be added if the ratio of the spacing on e
 slope = 0.05 # maximum difference in value between two adjacent points, scaled by the maximum difference in the profile (0.0 < slope < 1.0). Adds points in regions of high slope.
 curve = 0.05  # maximum difference in slope between two adjacent intervals, scaled by the maximum difference in the profile (0.0 < curve < 1.0). Adds points in regions of high curvature.
 prune = 0.03 # if the slope or curve criteria are satisfied to the level of ‘prune’, the grid point is assumed not to be needed and is removed. Set prune significantly smaller than ‘slope’ and ‘curve’. Set to zero to disable pruning the grid.
-resolution=1e-5
+resolution=1e-6
 
 
 M_O2= 32/1000   
 M_N2= 28.02/1000*3.76
     
 
-def calc(name,tburner,width,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac):
+def calc(name,tburner,width,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,stocking_values):
     gas = ct.Solution(formula)   #choosing the chemistry formulas of gri30
     gas.TP = tburner,pressure            #setting the gaz temperature and pressure
     dict_composant={}
@@ -90,13 +90,19 @@ def calc(name,tburner,width,pressure,sim_type,formula,equivalence_ratio,composit
     for i in range(size):
       grad[i] = (T[i+1]-T[i])/(z[i+1]-z[i])
     thickness = (max(T) -min(T)) / max(grad)
-    strain=f.velocity[0]/thickness
-    vel=strain*width
+    t_inv=f.velocity[0]/thickness
+    vel=t_inv*width
     mdot_calculated= rho_f*vel
 
-        
+    if stocking_values=='y':
+        try:
+             f.write_hdf('%s.h5' %name, group='laminar flame',mode='a', 
+                             description='solution with mixture-averaged transport')
+        except ImportError:
+              f.save('adiabatic_flame.xml', 'mix',
+                     'solution with mixture-averaged transport')      
 
-    return mdot_calculated,strain
+    return mdot_calculated,t_inv
     
 
 

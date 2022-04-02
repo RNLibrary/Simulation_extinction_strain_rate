@@ -13,12 +13,11 @@ detach and move closer to the surface.
 
 
 import cantera as ct
-import os
 import csv
+import os
 import matplotlib.pyplot as plt
 import numpy as np
-import h5py
-
+import math
 loglevel = 1  # amount of diagnostic output (0 to 5)
 
 
@@ -33,7 +32,7 @@ M_O2= 32/1000
 M_N2= 28.02/1000*3.76
     
 
-def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,strain):
+def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,strain,stocking_values):
     gas = ct.Solution(formula)   #choosing the chemistry formulas of gri30
     gas.TP = tburner,pressure            #setting the gaz temperature and pressure
     dict_composant={}
@@ -42,23 +41,27 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
     matrice_grid=[]
     matrice_hrr=[]
     matrice_T=[]
-    raffinement=10
-    mdot_variable=np.linspace(0,mdot,raffinement)
-    test_raf=0
-    test_conv=0
-    double_converge=0
-                              #   STARTING THE BIG BIG LOOP
-    n=1    
-    y=1
-         
+    mdot_max=mdot
+    mdot_min=mdot/100
+    precision=0.01
+    n_iteration=math.ceil(math.log((mdot_max-mdot_min)/precision,2))
+    print('le nombre d"itération prévu pour 1% de précision est:', n_iteration)
+    
+   
                                 # WRITING THE BELOW INFORMATION IN VALUES2.XML
-    row1=['T','maxHeat','strainRate','','p','tburner','tsurf','mdot','witdh','Resolution','eq']
-    with open(r'VALUES2_%s.csv' %name,"a",newline="") as csvfile:
-                csvwriter= csv.writer(csvfile)
-                csvwriter.writerow(row1)
+    if stocking_values=='y':
+        row1=['T','maxHeat','strainRate','','p','tburner','tsurf','mdot','witdh','Resolution','eq']
+        with open(r'VALUES2_%s.csv' %name,"a",newline="") as csvfile:
+                    csvwriter= csv.writer(csvfile)
+                    csvwriter.writerow(row1)
            
-    while True:
-        
+    for n_ite in range(1,n_iteration+1): 
+        print('we are at step %s for %s' % (n_ite, name))
+        if n_ite==1:
+            mdot_n=mdot_max
+        else:
+            mdot_n = (mdot_min + mdot_max)/2
+        print('new speed is %s for %s' % (mdot_n, name))
         for i in range(len(composition)):
             
             # composition_string={composition[composant]:mole_frac[composant]}
@@ -82,7 +85,7 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
         sim = ct.ImpingingJet(gas=gas, width=width)
         
                               # set the mass flow rate at the inlet
-        sim.inlet.mdot = mdot_variable[y]
+        sim.inlet.mdot = mdot_n
         
                             # set the surface state
         sim.surface.T = tsurf
@@ -100,7 +103,7 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
         try:
             sim.solve(loglevel,refine_grid=True, auto=True)
         except ct.CanteraError as e:
-            print('Error: Did not converge at attempt n =', n, e)
+            print('Error: Did not converge at attempt n =', n_ite, e)
          
                 
                 #  SAVING MAX T AND MAX HRR     
@@ -118,86 +121,56 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
         
                                      ## FINDING VELOCITY FOR STRAIN RATE
         rho_f = pressure / (8.314 / M_tot * tburner)     # fuel inlet density    
-        mdotf= mdot_variable[y]                     # fuel inlet mass flow rate (kg/m^2/s)
+        mdotf= mdot_n                    # fuel inlet mass flow rate (kg/m^2/s)
         vel_f = mdotf / rho_f                  # fuel inlet velocity
    
     
     
     
                                     # # WRITING THE BELOW INFORMATION IN VALUES2.XML
-        row=[str(maxT),str(maxHeat),str(vel_f/width),"",str(pressure),str(tburner),str(tsurf),str( mdot_variable[y]),str(width),str(resolution),str(equivalence_ratio)]
-        print('results of',name)
-        print(row)
-        with open(r'VALUES2_%s.csv' %name,"a",newline="") as csvfile:
-                csvwriter= csv.writer(csvfile)
-                csvwriter.writerow(row)  
-        
-        if n==1:
-            # f = h5py.File('%s.h5' %name)
-            # f['mydataset'][:] = 0
-            try:
-                sim.write_hdf('%s.h5' %name, group='step #%s'% n,mode='a', 
-                                description='solution with mixture-averaged transport')
-            except ImportError:
-                 sim.save('adiabatic_flame.xml', 'mix',
-                        'solution with mixture-averaged transport')  
-        
-        else:
+        if stocking_values=='y':                                
+            row=[str(maxT),str(maxHeat),str(vel_f/width),"",str(pressure),str(tburner),str(tsurf),str(mdot_n),str(width),str(resolution),str(equivalence_ratio)]
+            print('results of',name)
+            print(row)
+            with open(r'VALUES2_%s.csv' %name,"a",newline="") as csvfile:
+                    csvwriter= csv.writer(csvfile)
+                    csvwriter.writerow(row)  
+
                 
             try:
-                # save to HDF container file if h5py is installed
-                sim.write_hdf('%s.h5' %name, group='step #%s'% n,
-                                    description='solution with mixture-averaged transport')
+                    # save to HDF container file if h5py is installed
+                    sim.write_hdf('%s.h5' %name, group='step #%s'% n_ite,
+                                        description='solution with mixture-averaged transport')
             except ImportError:
-                sim.save('adiabatic_flame.xml', 'mix',
-                       'solution with mixture-averaged transport')  
-       
-                    
-                            # CONDITIONSSS
-        if not np.isclose(max(sim.T), tsurf):
-            n +=1
-            y +=1
-            if y==10 :
-                print('index exceeded expectations')
-                new_mdot=mdot_variable[y-1]*2
-                old_mdot=mdot_variable[y-1]
-                mdot_variable=np.linspace(mdot,new_mdot,raffinement)
-                y=1 
-            print ('la nouvelle vitesse est de',  mdot_variable[y])
+                    sim.save('adiabatic_flame.xml', 'mix',
+                           'solution with mixture-averaged transport')  
+           
+        
+
+        if not np.isclose(max(sim.T), tsurf) and n_ite==1:
+            mdot_max = mdot_max*1.5
+            mdot_min = mdot_n
+            sim.set_initial_guess() 
+        elif not np.isclose(max(sim.T), tsurf) and n_ite>1 and n_ite <n_iteration:
+             mdot_max = mdot_max
+             mdot_min = mdot_n
+             sim.set_initial_guess() 
+        elif np.isclose(max(sim.T), tsurf):
+            mdot_max = mdot_n
+            mdot_min = mdot_min
             sim.set_initial_guess()
+        elif not np.isclose(max(sim.T), tsurf) and n_ite==n_iteration:
+            print('max iteration achieved')
             
-        elif np.isclose(max(sim.T), tsurf) and test_conv==0 and n!=1:
-             print("la flamme a convergé pour la première fois")
-             n +=1
-             test_conv=1
-             old_mdot=mdot_variable[y-1]
-             max_mdot=mdot_variable[y]
-
-             mdot_variable=np.linspace(old_mdot,max_mdot,raffinement)
-             y=1
-             print ('la nouvelle vitesse est de',  mdot_variable[y])
-             sim.set_initial_guess()
-    
-        elif np.isclose(max(sim.T), tsurf) and test_conv==0 and n==1:
-            print("la flamme s'est éteinte à la première simulation")
-
-            max_mdot=mdot_variable[y]
-
-            mdot_variable=np.linspace(0,max_mdot,raffinement)
-            y=1
-            n+=1
-            test_conv=1
-            print ('la nouvelle vitesse est de',  mdot_variable[y])
-            sim.set_initial_guess()
+        elif np.isclose(max(sim.T), tsurf) and n_ite==n_iteration:
+            print('max iteration achieved')
+            mdot_n=mdot_min
             
-        elif np.isclose(max(sim.T), tsurf) and test_conv==1: 
-            if  np.isclose(matrice_T[n-1][-1],matrice_T[n-2][-1]) :
-                print('La simulation a convergé 2 fois de suite')
-                double_converge=1
-            print ('la vitesse est  de',  mdot_variable[y])
-            print ('convergence trouvé')
-            break
-    
+            if mdot_n==mdot/100:
+                print('speed is smaller than 1"%" of initial guess')
+                
+          
+            
             
             
 
@@ -211,13 +184,15 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
     plt.rcParams['mathtext.rm'] = 'STIXGeneral'
     plt.rcParams['mathtext.it'] = 'STIXGeneral:italic'
     plt.rcParams['mathtext.bf'] = 'STIXGeneral:bold'
-    if double_converge==1:
-        plt.plot(matrice_grid[n-3], matrice_hrr[n-3],'-',c='k',label='HRR',linewidth=2.5)
-        plt.plot(matrice_grid[n-3],matrice_T[n-3],'-.',c='r',label='TEMPERATURE',linewidth=1)
-    else:
-        plt.plot(matrice_grid[n-2], matrice_hrr[n-2],'-',c='k',label='HRR',linewidth=2.5)
-        plt.plot(matrice_grid[n-2],matrice_T[n-2],'-.',c='r',label='TEMPERATURE',linewidth=1)
-    # plt.plot(normalized_grid, normalized_O2,'-',c='g',label='[O2]',linewidth=1)
+    # if double_converge==1:
+    #     plt.plot(matrice_grid[n-3], matrice_hrr[n-3],'-',c='k',label='HRR',linewidth=2.5)
+    #     plt.plot(matrice_grid[n-3],matrice_T[n-3],'-.',c='r',label='TEMPERATURE',linewidth=1)
+    # else:
+    #     plt.plot(matrice_grid[n-2], matrice_hrr[n-2],'-',c='k',label='HRR',linewidth=2.5)
+    #     plt.plot(matrice_grid[n-2],matrice_T[n-2],'-.',c='r',label='TEMPERATURE',linewidth=1)
+    ## plt.plot(normalized_grid, normalized_O2,'-',c='g',label='[O2]',linewidth=1)
+    plt.plot(matrice_grid[n_ite-1], matrice_hrr[n_ite-1],'-',c='k',label='HRR',linewidth=2.5)
+    plt.plot(matrice_grid[n_ite-1],matrice_T[n_ite-1],'-.',c='r',label='TEMPERATURE',linewidth=1)
     plt.ylabel(r'NORMALIZED DATA')
     plt.xlabel(r'NORMALIZED DISTANCE (m)')
     plt.title('%s'  %name)
@@ -227,11 +202,11 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
     plt.savefig(r' %s.png' %name, bbox_inches='tight', dpi=150)
     # plt.savefig(r' HH[%s].png' %i, bbox_inches='tight', dpi=150)
     # plt.show()
-    mdotf= mdot_variable[y-1]                     # fuel inlet mass flow rate (kg/m^2/s)
+    mdotf= mdot_n                     # fuel inlet mass flow rate (kg/m^2/s)
     vel_f = mdotf / rho_f                  # fuel inlet velocity
     strain=vel_f/width
     print('this is run',name)
-    print("Strain rate of laminar : " ,strain)
+    print("Strain rate of impingingJet : " ,strain)
     print('thats the strain rate of free flame',mdot/rho_f/width)
     
         
