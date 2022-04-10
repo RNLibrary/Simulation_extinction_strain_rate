@@ -25,33 +25,37 @@ ratio = 2.00  # additional points will be added if the ratio of the spacing on e
 slope = 0.05 # maximum difference in value between two adjacent points, scaled by the maximum difference in the profile (0.0 < slope < 1.0). Adds points in regions of high slope.
 curve = 0.05  # maximum difference in slope between two adjacent intervals, scaled by the maximum difference in the profile (0.0 < curve < 1.0). Adds points in regions of high curvature.
 prune = 0.03 # if the slope or curve criteria are satisfied to the level of ‘prune’, the grid point is assumed not to be needed and is removed. Set prune significantly smaller than ‘slope’ and ‘curve’. Set to zero to disable pruning the grid.
-resolution=1e-4
+resolution=1e-8
 
 
 M_O2= 32/1000   
 M_N2= 28.02/1000*3.76
     
 
-def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,strain,stocking_values):
+def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,strain,stocking_values,resolution,precision):
     gas = ct.Solution(formula)   #choosing the chemistry formulas of gri30
     gas.TP = tburner,pressure            #setting the gaz temperature and pressure
     dict_composant={}
+    resolution=resolution
     dict_M_num=[None] * len(composition)  
     dict_M_denum=[None] * len(composition) 
     matrice_grid=[]
     matrice_hrr=[]
     matrice_T=[]
     mdot_max=mdot
-    mdot_min=mdot/100
-    precision=0.01
+    mdot_min=mdot/1000
+    precision=precision
     n_iteration=math.ceil(math.log((mdot_max-mdot_min)/precision,2))
     print('le nombre d"itération prévu pour 1% de précision est:', n_iteration)
     
    
-                                # WRITING THE BELOW INFORMATION IN VALUES2.XML
+                                # WRITING THE BELOW INFORMATION IN VALUES.XML
     if stocking_values=='y':
-        row1=['T','maxHeat','strainRate','','p','tburner','tsurf','mdot','witdh','Resolution','eq']
-        with open(r'VALUES2_%s.csv' %name,"a",newline="") as csvfile:
+        outfile = r'VALUES_%s.csv' %name
+        if os.path.exists(outfile):
+            os.remove(outfile)
+        row1=['T','maxHeat','strainRate','','p','tburner','tsurf','mdot','width','Resolution','eq']
+        with open(r'VALUES_%s.csv' %name,"a",newline="") as csvfile:
                     csvwriter= csv.writer(csvfile)
                     csvwriter.writerow(row1)
            
@@ -127,12 +131,11 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
     
     
     
-                                    # # WRITING THE BELOW INFORMATION IN VALUES2.XML
+                                    # # WRITING THE BELOW INFORMATION IN VALUES.XML
         if stocking_values=='y':                                
             row=[str(maxT),str(maxHeat),str(vel_f/width),"",str(pressure),str(tburner),str(tsurf),str(mdot_n),str(width),str(resolution),str(equivalence_ratio)]
-            print('results of',name)
-            print(row)
-            with open(r'VALUES2_%s.csv' %name,"a",newline="") as csvfile:
+            print('results completed for',name)
+            with open(r'VALUES_%s.csv' %name,"a",newline="") as csvfile:
                     csvwriter= csv.writer(csvfile)
                     csvwriter.writerow(row)  
 
@@ -207,7 +210,7 @@ def calc(name,tburner,tsurf,width,mdot,pressure,sim_type,formula,equivalence_rat
     strain=vel_f/width
     print('this is run',name)
     print("Strain rate of impingingJet : " ,strain)
-    print('thats the strain rate of free flame',mdot/rho_f/width)
+    # print('thats the strain rate of free flame',mdot/rho_f/width)
     
         
     return fig

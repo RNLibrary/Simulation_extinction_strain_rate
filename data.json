@@ -11,7 +11,9 @@
             "formula": "gri30.xml",
             "mole_frac": [0.5, 0.5],
             "composition": ["H2", "CH4"],
-	    "stocking_values":"y"
+	    "stocking_values":"y",
+	    "resolution":1e-4,
+	    "precision":0.01
         },
  	{
             "name": "RUN 2",
@@ -24,7 +26,9 @@
             "formula": "gri30.xml",
             "mole_frac": [0.2, 0.8],
             "composition": ["H2", "CH4"],
-	    "stocking_values":"y"
+	    "stocking_values":"n",
+	    "resolution":1e-4,
+	    "precision":0.01
         }
-  ]
+    ]
 }

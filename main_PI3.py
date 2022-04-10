@@ -43,7 +43,9 @@ def run_simulation(simulation, delay):
     validate_key_config('equivalence ratio', simulation)
     validate_key_config('mole_frac', simulation)
     validate_key_config('stocking_values', simulation)
-
+    validate_key_config('resolution', simulation)
+    validate_key_config('precision', simulation)
+    
     name = simulation['name']    
     tsurf = simulation['tsurf']
     tburner = simulation['tburner']
@@ -55,8 +57,10 @@ def run_simulation(simulation, delay):
     equivalence_ratio = simulation['equivalence ratio']
     composition = simulation['composition']
     mole_frac = simulation['mole_frac']
+    resolution = simulation['resolution']
+    precision = simulation['precision']
     
-    freeflame_values=freeflame.calc(name,tburner,width,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,stocking_values)
+    freeflame_values=freeflame.calc(name,tburner,width,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,stocking_values,resolution)
     # print(f"here is {freeflame_values[1]}")
     mdot_calculated=freeflame_values[0]
     strain=freeflame_values[1]
@@ -65,7 +69,7 @@ def run_simulation(simulation, delay):
     # if str.lower(sim_type) == "freeflame":
     #     freeflame.calc()
     if str.lower(sim_type) == "impingingjet":
-        ImpingingJet.calc(name,tburner,tsurf,width,mdot_calculated,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,strain,stocking_values)       
+        ImpingingJet.calc(name,tburner,tsurf,width,mdot_calculated,pressure,sim_type,formula,equivalence_ratio,composition,mole_frac,strain,stocking_values,resolution,precision)       
 
     time.sleep(2 + delay)
 
@@ -80,31 +84,31 @@ n_cores=psutil.cpu_count(logical=False)
 #                 res = executor.map(run_simulation, simulation)  
 #     print(list(res))
 
-def main():
-    with concurrent.futures.ProcessPoolExecutor(max_workers=n_cores) as executor:
-      futures = []
-      delay = 1
-      with tqdm(total=len(simulations)) as pbar:
-          for simulation in simulations:
-              futures.append(executor.submit(run_simulation, simulation, delay))
-              delay += 2
-          for future in concurrent.futures.as_completed(futures):
-              pbar.update(1)
-              print(future.result())   
+# def main():
+#     with concurrent.futures.ProcessPoolExecutor(max_workers=n_cores) as executor:
+#       futures = []
+#       delay = 1
+#       with tqdm(total=len(simulations)) as pbar:
+#           for simulation in simulations:
+#               futures.append(executor.submit(run_simulation, simulation, delay))
+#               delay += 2
+#           for future in concurrent.futures.as_completed(futures):
+#               pbar.update(1)
+#               print(future.result())   
       
-if __name__ == '__main__':
-    main()    
+# if __name__ == '__main__':
+#     main()    
 
-# with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-#     futures = []
-#     delay = 1
-#     with tqdm(total=len(simulations)) as pbar:
-#         for simulation in simulations:
-#             futures.append(executor.submit(run_simulation, simulation, delay))
-#             delay += 2
-#         for future in concurrent.futures.as_completed(futures):
-#             pbar.update(1)
-#             print(future.result())
+with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
+    futures = []
+    delay = 1
+    with tqdm(total=len(simulations)) as pbar:
+        for simulation in simulations:
+            futures.append(executor.submit(run_simulation, simulation, delay))
+            delay += 2
+        for future in concurrent.futures.as_completed(futures):
+            pbar.update(1)
+            print(future.result())
 
 
     
